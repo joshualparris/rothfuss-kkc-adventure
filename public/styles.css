@@ -140,6 +140,29 @@ body {
   gap: 10px;
 }
 
+.command-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.command-button {
+  appearance: none;
+  border: 1px solid rgba(125, 169, 255, 0.16);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(47, 78, 169, 0.16);
+  color: #eef3ff;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+}
+
+.command-button:hover {
+  background: rgba(69, 109, 223, 0.2);
+}
+
 .history-list {
   flex: 1;
   overflow: auto;

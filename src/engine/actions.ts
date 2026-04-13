@@ -36,6 +36,70 @@ const DIRECTION_WORDS = new Set([
   'in'
 ]);
 
+const DIRECTION_ALIASES = new Map([
+  ['n', 'north'],
+  ['s', 'south'],
+  ['e', 'east'],
+  ['w', 'west'],
+  ['u', 'up'],
+  ['d', 'down'],
+  ['in', 'enter'],
+  ['out', 'out']
+]);
+
+const LOOK_COMMANDS = new Set(['look', 'look around', 'examine', 'inspect']);
+const HELP_COMMANDS = new Set(['help', 'commands', '?']);
+const INVENTORY_COMMANDS = new Set(['inventory', 'i', 'inv']);
+const STATUS_COMMANDS = new Set(['status']);
+
+function normalizeDirection(direction: string): string {
+  const normalized = direction.trim().toLowerCase();
+  if (DIRECTION_WORDS.has(normalized)) {
+    return normalized;
+  }
+
+  return DIRECTION_ALIASES.get(normalized) ?? '';
+}
+
+function renderInventoryOutput(state: PlayerState): string {
+  if (!state.inventory || state.inventory.length === 0) {
+    return 'You are carrying nothing of note.';
+  }
+
+  return ['Inventory:']
+    .concat(state.inventory.map((item) => (item.quantity > 1 ? `${item.name} x${item.quantity}` : item.name)))
+    .join('\n');
+}
+
+function renderStatusOutput(
+  state: PlayerState,
+  location: import('../types').Location | null,
+  accessibleExits: import('../types').Exit[]
+): string {
+  const lines = [
+    `Location: ${location?.name ?? 'Unknown'}`,
+    `Time: ${state.time_of_day}, Day ${state.day_number}`,
+    `Money: ${state.money_drabs ?? 0} drabs`,
+    `Rank: ${state.academic_rank}`
+  ];
+
+  if (typeof state.hunger === 'number') {
+    lines.push(`Hunger: ${state.hunger}`);
+  }
+
+  if (typeof state.warmth === 'number') {
+    lines.push(`Warmth: ${state.warmth}`);
+  }
+
+  if (state.sympathy_state && typeof state.sympathy_state.alar_strength === 'number') {
+    lines.push(`Alar strength: ${state.sympathy_state.alar_strength}`);
+  }
+
+  lines.push(`Exits: ${accessibleExits.map((exit) => exit.direction).join(', ') || 'none'}`);
+
+  return lines.join('\n');
+}
+
 async function renderSceneOutput(
   command: string,
   narrator: NarrationProvider,
@@ -150,7 +214,7 @@ export async function dispatch(
   const trimmedInput = input.trim();
   const normalizedInput = trimmedInput.toLowerCase();
 
-  if (normalizedInput === 'look' || normalizedInput === 'look around') {
+  if (LOOK_COMMANDS.has(normalizedInput)) {
     const location = getLocation(db, state.location_id);
 
     if (!location) {
@@ -176,6 +240,43 @@ export async function dispatch(
     };
   }
 
+  if (HELP_COMMANDS.has(normalizedInput)) {
+    return {
+      output:
+        'Available commands:\n' +
+        '- look / examine / inspect\n' +
+        '- north / south / east / west / up / down / in / out\n' +
+        '- go <direction>\n' +
+        '- inventory / i / inv\n' +
+        '- status\n' +
+        '- sympathy status / alar status\n' +
+        '- sleep / rest / eat / wait\n' +
+        '- help / commands / ?\n' +
+        '\nTry typing a command or click one of the quick action buttons.',
+      newState: state,
+      shouldExit: false
+    };
+  }
+
+  if (INVENTORY_COMMANDS.has(normalizedInput)) {
+    return {
+      output: renderInventoryOutput(state),
+      newState: state,
+      shouldExit: false
+    };
+  }
+
+  if (STATUS_COMMANDS.has(normalizedInput)) {
+    const location = getLocation(db, state.location_id);
+    const accessibleExits = location ? getAccessibleExits(location, state) : [];
+
+    return {
+      output: renderStatusOutput(state, location, accessibleExits),
+      newState: state,
+      shouldExit: false
+    };
+  }
+
   if (normalizedInput === 'sympathy status' || normalizedInput === 'alar status') {
     return {
       output: sympathyStatusOutput(state),
@@ -184,11 +285,10 @@ export async function dispatch(
     };
   }
 
-  const bareDirection = DIRECTION_WORDS.has(normalizedInput) ? normalizedInput : null;
-  const goDirection = normalizedInput.startsWith('go ')
+  const commandBody = normalizedInput.startsWith('go ')
     ? normalizedInput.slice(3).trim()
-    : '';
-  const chosenDirection = bareDirection ?? (DIRECTION_WORDS.has(goDirection) ? goDirection : '');
+    : normalizedInput;
+  const chosenDirection = normalizeDirection(commandBody);
 
   if (chosenDirection) {
     const movementResult = movePlayer(db, state, chosenDirection);
