@@ -64,6 +64,12 @@ export function runMigrations(db: InstanceType<typeof Database>): void {
       delta        INTEGER NOT NULL,
       apply_on_day INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS save_slots (
+      slot_name TEXT PRIMARY KEY,
+      saved_at TEXT NOT NULL,
+      state TEXT NOT NULL
+    );
   `);
 
   const playerStateColumns = db

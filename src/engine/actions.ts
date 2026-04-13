@@ -5,6 +5,7 @@ import { parseNPCCommand, talkToNPC } from './npcEngine';
 import { askKilvinForWork, respondToAmbrose, workFisheryShift } from './socialEngine';
 import type { NarrationProvider } from '../narration/provider';
 import { buildNarrationSceneContext } from '../narration/narrationContext';
+import { loadGameSlot, saveGameSlot, listGameSlots, deleteGameSlot } from './state';
 import {
   alarLabel,
   hungerLabel,
@@ -50,7 +51,10 @@ const DIRECTION_ALIASES = new Map([
 const LOOK_COMMANDS = new Set(['look', 'look around', 'examine', 'inspect']);
 const HELP_COMMANDS = new Set(['help', 'commands', '?']);
 const INVENTORY_COMMANDS = new Set(['inventory', 'i', 'inv']);
-const STATUS_COMMANDS = new Set(['status']);
+const STATUS_COMMANDS = new Set(['status', 'stats']);
+const JOURNAL_COMMANDS = new Set(['journal', 'quests', 'quest log']);
+const SAVE_SLOT_COMMANDS = new Set(['slots', 'save slots']);
+const MAP_COMMANDS = new Set(['map']);
 
 function normalizeDirection(direction: string): string {
   const normalized = direction.trim().toLowerCase();
@@ -98,6 +102,41 @@ function renderStatusOutput(
   lines.push(`Exits: ${accessibleExits.map((exit) => exit.direction).join(', ') || 'none'}`);
 
   return lines.join('\n');
+}
+
+function renderJournalOutput(state: PlayerState): string {
+  const journalEntries = state.world_state_flags?.journal_entries;
+  if (!Array.isArray(journalEntries) || journalEntries.length === 0) {
+    return 'Your journal is quiet. Explore the University and make notes about interesting places.';
+  }
+
+  return ['Quest journal:']
+    .concat(
+      journalEntries.map((entry) => {
+        return typeof entry === 'string' ? `- ${entry}` : `- ${JSON.stringify(entry)}`;
+      })
+    )
+    .join('\n');
+}
+
+function parseSlotName(input: string): string | null {
+  const trimmed = input.trim();
+  const match = trimmed.match(/^\s*(?:save|load|delete)\s+(.+)$/i);
+  if (!match) {
+    return null;
+  }
+
+  return match[1].trim();
+}
+
+function formatSaveSlotList(slots: Array<{ slot_name: string; saved_at: string }>): string {
+  if (!slots.length) {
+    return 'No saved slots yet. Use save <name> to create one.';
+  }
+
+  return ['Saved slots:']
+    .concat(slots.map((slot) => `- ${slot.slot_name} (${slot.saved_at})`))
+    .join('\n');
 }
 
 async function renderSceneOutput(
@@ -249,6 +288,10 @@ export async function dispatch(
         '- go <direction>\n' +
         '- inventory / i / inv\n' +
         '- status\n' +
+        '- journal / quests\n' +
+        '- save <name> / load <name> / delete <name>\n' +
+        '- slots\n' +
+        '- map\n' +
         '- sympathy status / alar status\n' +
         '- sleep / rest / eat / wait\n' +
         '- help / commands / ?\n' +
@@ -275,6 +318,88 @@ export async function dispatch(
       newState: state,
       shouldExit: false
     };
+  }
+
+  if (JOURNAL_COMMANDS.has(normalizedInput)) {
+    return {
+      output: renderJournalOutput(state),
+      newState: state,
+      shouldExit: false
+    };
+  }
+
+  if (SAVE_SLOT_COMMANDS.has(normalizedInput)) {
+    return {
+      output: formatSaveSlotList(listGameSlots(db)),
+      newState: state,
+      shouldExit: false
+    };
+  }
+
+  if (MAP_COMMANDS.has(normalizedInput)) {
+    const location = getLocation(db, state.location_id);
+    const accessibleExits = location ? getAccessibleExits(location, state) : [];
+    if (!location) {
+      return {
+        output: 'Map data is not available right now.',
+        newState: state,
+        shouldExit: false
+      };
+    }
+
+    return {
+      output: `You are at ${location.name}. Exits: ${accessibleExits.map((exit) => `${exit.direction} → ${exit.target_location_id}`).join(', ') || 'none'}`,
+      newState: state,
+      shouldExit: false
+    };
+  }
+
+  if (normalizedInput.startsWith('save ') || normalizedInput.startsWith('load ') || normalizedInput.startsWith('delete ')) {
+    const slotName = parseSlotName(trimmedInput);
+    if (!slotName) {
+      return {
+        output: 'Please provide a slot name, for example save mygame or load mygame.',
+        newState: state,
+        shouldExit: false
+      };
+    }
+
+    if (normalizedInput.startsWith('save ')) {
+      saveGameSlot(db, slotName, state);
+      return {
+        output: `Saved progress to slot "${slotName}". You can load it later with load ${slotName}.`,
+        newState: state,
+        shouldExit: false
+      };
+    }
+
+    if (normalizedInput.startsWith('load ')) {
+      const loadedState = loadGameSlot(db, slotName);
+      if (!loadedState) {
+        return {
+          output: `Save slot "${slotName}" not found. Use save ${slotName} first.`,
+          newState: state,
+          shouldExit: false
+        };
+      }
+
+      return {
+        output: `Loaded save slot "${slotName}".`,
+        newState: loadedState,
+        shouldExit: false
+      };
+    }
+
+    if (normalizedInput.startsWith('delete ')) {
+      const deleted = deleteGameSlot(db, slotName);
+      return {
+        output: deleted
+          ? `Deleted save slot "${slotName}".`
+          : `Save slot "${slotName}" not found.`,
+        newState: state,
+        shouldExit: false
+      };
+    }
   }
 
   if (normalizedInput === 'sympathy status' || normalizedInput === 'alar status') {
@@ -593,34 +718,6 @@ export async function dispatch(
   if (npcCommand) {
     return {
       output: talkToNPC(npcCommand.npc_id, npcCommand.topic, state, db),
-      newState: state,
-      shouldExit: false
-    };
-  }
-
-  if (normalizedInput === 'status' || normalizedInput === 'stats') {
-    return {
-      output: renderStatus(state),
-      newState: state,
-      shouldExit: false
-    };
-  }
-
-  if (
-    normalizedInput === 'inventory' ||
-    normalizedInput === 'inv' ||
-    normalizedInput === 'i'
-  ) {
-    return {
-      output: renderInventory(state),
-      newState: state,
-      shouldExit: false
-    };
-  }
-
-  if (normalizedInput === 'help') {
-    return {
-      output: narrator.renderHelp(),
       newState: state,
       shouldExit: false
     };

@@ -105,21 +105,23 @@ function parseInjuries(value: string): string[] {
   return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string') : [];
 }
 
-function parseWorldStateFlags(value: string): Record<string, boolean | string | number> {
+function parseWorldStateFlags(value: string): Record<string, unknown> {
   const parsed = parseJson(value);
 
   if (!isRecord(parsed)) {
     return {};
   }
 
-  const entries = Object.entries(parsed).filter(
-    (
-      entry
-    ): entry is [string, boolean | string | number] =>
-      typeof entry[1] === 'boolean' ||
-      typeof entry[1] === 'string' ||
-      typeof entry[1] === 'number'
-  );
+  const entries = Object.entries(parsed).filter((entry): entry is [string, unknown] => {
+    const value = entry[1];
+    return (
+      typeof value === 'boolean' ||
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      Array.isArray(value) ||
+      isRecord(value)
+    );
+  });
 
   return Object.fromEntries(entries);
 }
@@ -368,7 +370,66 @@ export function savePlayerState(db: InstanceType<typeof Database>, state: Player
     world_state_flags: JSON.stringify(state.world_state_flags)
   });
 }
+export interface SaveSlotEntry {
+  slot_name: string;
+  saved_at: string;
+  state: PlayerState;
+}
 
+export function saveGameSlot(
+  db: InstanceType<typeof Database>,
+  slotName: string,
+  state: PlayerState
+): void {
+  const savedAt = new Date().toISOString();
+
+  db.prepare(`
+    INSERT INTO save_slots (slot_name, saved_at, state)
+    VALUES (@slot_name, @saved_at, @state)
+    ON CONFLICT(slot_name) DO UPDATE SET
+      saved_at = excluded.saved_at,
+      state = excluded.state
+  `).run({
+    slot_name: slotName,
+    saved_at: savedAt,
+    state: JSON.stringify(state)
+  });
+}
+
+export function loadGameSlot(
+  db: InstanceType<typeof Database>,
+  slotName: string
+): PlayerState | null {
+  const row = db
+    .prepare('SELECT state FROM save_slots WHERE slot_name = ?')
+    .get(slotName) as { state: string } | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(row.state) as PlayerState;
+  } catch {
+    return null;
+  }
+}
+
+export function listGameSlots(
+  db: InstanceType<typeof Database>
+): Array<{ slot_name: string; saved_at: string }> {
+  return db
+    .prepare('SELECT slot_name, saved_at FROM save_slots ORDER BY saved_at DESC')
+    .all() as Array<{ slot_name: string; saved_at: string }>;
+}
+
+export function deleteGameSlot(
+  db: InstanceType<typeof Database>,
+  slotName: string
+): boolean {
+  const result = db.prepare('DELETE FROM save_slots WHERE slot_name = ?').run(slotName);
+  return result.changes > 0;
+}
 export function initDefaultPlayerState(): PlayerState {
   return {
     character_id: 'kvothe',
@@ -437,6 +498,13 @@ export function initDefaultPlayerState(): PlayerState {
       performances_today: 0
     },
     warmth: 80,
-    world_state_flags: {}
+    world_state_flags: {
+      tutorial_shown: false,
+      journal_entries: [
+        'First task: learn the core commands with help.',
+        'Explore the courtyard and discover a new location.',
+        'Try saving and loading your progress with save <name> / load <name>.'
+      ]
+    }
   };
 }

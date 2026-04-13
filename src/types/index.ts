@@ -130,7 +130,7 @@ export interface PlayerState {
   fishery_state: FisheryState;
   eolian_state: EolianState;
   warmth: number;
-  world_state_flags: Record<string, boolean | string | number>;
+  world_state_flags: Record<string, unknown>;
 }
 
 export interface NarrationSceneContext {

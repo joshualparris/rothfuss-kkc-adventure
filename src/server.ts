@@ -109,11 +109,30 @@ function getScenePayload(output: string, shouldExit: boolean): unknown {
   };
 }
 
+function getTutorialMessage(): string {
+  return [
+    'Welcome to KKC Adventure!',
+    'This is your first time here. Try the commands in the quick actions, or type help to see the available commands.',
+    'You can also save your progress with save <slot> and load it again with load <slot>.'
+  ].join(' ');
+}
+
 async function handleApiInit(response: http.ServerResponse): Promise<void> {
   try {
     const result = await dispatch('look', currentState, db, narrator);
     currentState = result.newState;
-    savePlayerState(db, currentState);
+
+    if (!currentState.world_state_flags?.tutorial_shown) {
+      currentState.world_state_flags = {
+        ...currentState.world_state_flags,
+        tutorial_shown: true
+      };
+      savePlayerState(db, currentState);
+      result.output = `${getTutorialMessage()}\n\n${result.output}`;
+    } else {
+      savePlayerState(db, currentState);
+    }
+
     jsonResponse(response, 200, getScenePayload(result.output, result.shouldExit));
   } catch (error) {
     jsonResponse(response, 500, { error: String(error) });

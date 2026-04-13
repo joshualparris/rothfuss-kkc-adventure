@@ -10,13 +10,15 @@ const exitsElement = document.getElementById('exits');
 const peopleElement = document.getElementById('people');
 const inventoryElement = document.getElementById('inventory');
 const historyElement = document.getElementById('history');
+const mapElement = document.getElementById('map');
+const journalElement = document.getElementById('journal');
 const quickCommandsContainer = document.getElementById('quick-commands');
 const clearHistoryButton = document.getElementById('clear-history-button');
 const commandForm = document.getElementById('command-form');
 const commandInput = document.getElementById('command-input');
 
 const HISTORY_STORAGE_KEY = 'kkc-adventure-history';
-const QUICK_COMMANDS = ['look', 'north', 'south', 'east', 'west', 'up', 'down', 'inventory', 'status', 'help'];
+const QUICK_COMMANDS = ['look', 'north', 'south', 'east', 'west', 'up', 'down', 'inventory', 'status', 'journal', 'slots', 'map'];
 let historyEntries = [];
 let commandHistory = [];
 let historyPosition = -1;
@@ -86,6 +88,28 @@ function clearHistory() {
   renderHistory();
 }
 
+function renderMap(response) {
+  const locationName = response.location?.name ?? 'Unknown location';
+  const exits = response.accessibleExits || [];
+  const exitLines = exits.length
+    ? exits.map((exit) => `${exit.direction} → ${exit.target_location_id}`).join('\n')
+    : 'None';
+
+  return `Position: ${locationName}\n\nExits:\n${exitLines}`;
+}
+
+function renderJournal(response) {
+  const journalEntries = response.state.world_state_flags?.journal_entries;
+
+  if (!Array.isArray(journalEntries) || journalEntries.length === 0) {
+    return 'Your journal is empty. Complete objectives to record new entries.';
+  }
+
+  return journalEntries
+    .map((entry, index) => `• ${typeof entry === 'string' ? entry : JSON.stringify(entry)}`)
+    .join('\n');
+}
+
 function renderScene(response) {
   outputElement.textContent = response.output;
   locationElement.textContent = response.location?.name ?? 'Unknown';
@@ -97,6 +121,14 @@ function renderScene(response) {
   alarElement.textContent = response.state.sympathy_state?.alar_strength ?? 'unknown';
   exitsElement.textContent = response.accessibleExits?.map((exit) => exit.direction).join(', ') || 'none';
   peopleElement.textContent = response.npcs?.map((npc) => npc.name).join(', ') || 'none';
+
+  if (mapElement) {
+    mapElement.textContent = renderMap(response);
+  }
+
+  if (journalElement) {
+    journalElement.textContent = renderJournal(response);
+  }
 
   inventoryElement.innerHTML = '';
   if (!response.state.inventory || response.state.inventory.length === 0) {

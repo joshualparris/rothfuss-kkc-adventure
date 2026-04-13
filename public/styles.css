@@ -163,6 +163,23 @@ body {
   background: rgba(69, 109, 223, 0.2);
 }
 
+.map-output,
+.journal-output {
+  background: rgba(14, 21, 36, 0.92);
+  border: 1px solid rgba(113, 144, 204, 0.14);
+  border-radius: 14px;
+  padding: 14px;
+  min-height: 100px;
+  color: #eef3ff;
+  line-height: 1.6;
+  margin-bottom: 16px;
+  white-space: pre-wrap;
+}
+
+.map-output {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
 .history-list {
   flex: 1;
   overflow: auto;
