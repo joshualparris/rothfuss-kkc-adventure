@@ -6,6 +6,7 @@
     "dev": "nodemon --watch src --ext ts --exec \"ts-node src/index.ts\"",
     "web": "nodemon --watch src --ext ts --exec \"ts-node src/server.ts\"",
     "build": "tsc",
+    "prestart": "npm run build",
     "start": "node dist/index.js",
     "db:seed": "ts-node -r dotenv/config src/db/seed.ts",
     "test": "jest"
