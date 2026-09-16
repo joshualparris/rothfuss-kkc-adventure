@@ -1,16 +1,19 @@
 # Podcast Integration TODO
 
-**Decision:** Add if this remains an active distinct KKC adventure project.
-**Topic bank:** Kingkiller Chronicle discussion, fantasy literature, storytelling craft, worldbuilding, literary analysis.
+**Decision:** Add — implemented as an app-local independent player.
+**Status:** ✅ Independent player added 16 September 2026.
+**Topic bank:** fantasy literature, storytelling craft, worldbuilding, literary analysis, reading life.
 
-## TODO
-- [ ] Prefer sharing the same curated Spotify bank as `kkc-adventure` rather than duplicating maintenance.
-- [ ] Maintain about 25 legitimate discussion/analysis episodes; no pirated audiobook sources.
-- [ ] Add a collapsed bottom dock: **📖 Listen to a different Kingkiller/fantasy podcast**.
-- [ ] One tap selects/loads another episode; persist recent choices and avoid immediate repeats.
-- [ ] Use Spotify embed/deep links without assuming autoplay.
-- [ ] Hide/pause whenever game narration, TTS or other audio is active.
-- [ ] Keep gameplay primary and add mobile/a11y/audio-conflict tests.
+## Completed
+- [x] Store 25 legitimate Spotify discussion/analysis episodes inside this repository; no pirated audiobook sources.
+- [x] Add a collapsed **🎧 Podcasts** launcher and local embedded Spotify player.
+- [x] One tap opens the player; **📖 Different podcast** avoids immediate/recent repeats.
+- [x] Persist current/recent selections in `localStorage`.
+- [x] Use Spotify embed/deep links without assuming autoplay.
+- [x] Close the panel if HTML audio/video begins playing so gameplay/audio remains primary.
+- [x] Remove any need for JoshHub, jsDelivr, shared podcast scripts or remote podcast JSON at runtime.
+- [x] Keep episode data separate from player logic through local `public/podcast-data.js` and `public/podcast-player.js` modules.
 
-## Shared direction
-Use the reusable **Josh Podcast Dock** and the shared KKC catalogue conventions.
+## Future
+- [ ] Add browser-level mobile/accessibility regression tests.
+- [ ] Replace or supplement broad literature episodes with more specifically Kingkiller/fantasy discussion episodes when verified Spotify IDs are available.
